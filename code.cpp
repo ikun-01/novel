@@ -2,108 +2,142 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define MAX_N 4   // 最大行列数
-#define MAX_M 256 // 最大子方阵个数
+#define MAX_M 1024
+#define MAX_N 31
 
-int N, M, Q; // 矩阵行列数、子方阵行列数、查询数量
-int mat[MAX_N * MAX_N]; // 矩阵
-int blk_cnt[MAX_N * MAX_N]; // 子方阵内元素个数
-int blk_avg[MAX_N * MAX_N]; // 子方阵平均值
-int blk_arr[MAX_N * MAX_N][MAX_N * MAX_N]; // 子方阵元素值
-int blk_med[MAX_N * MAX_N]; // 子方阵中位数
-int has_median[MAX_N * MAX_N]; // 子方阵是否已经计算过中位数
-int blk_var[MAX_N * MAX_N]; // 子方阵方差
+int M, N;
+int mat[MAX_M][MAX_M];
+int blk_avg[MAX_N][MAX_N];
+int blk_med[MAX_N][MAX_N];
+int blk_var[MAX_N][MAX_N];
+int cnt[MAX_N*MAX_N];
+int avg[MAX_N*MAX_N];
+int med[MAX_N*MAX_N];
+int var[MAX_N*MAX_N];
+
+// 比较函数
+int cmp(const void* a, const void* b) {
+    return *(int*)b - *(int*)a;
+}
 
 // 判断坐标是否越界
 int is_valid(int x, int y) {
-    return x >= 0 && y >= 0 && x < N && y < N;
+    return x >= 0 && y >= 0 && x < M && y < M;
 }
 
 // 计算子方阵平均值
 void calc_avg(int i, int j) {
     double sum = 0;
     int k, l;
-    for (k = 0; k < M; k++) {
-        for (l = 0; l < M; l++) {
-            int x = i * M + k;
-            int y = j * M + l;
+    for (k = 0; k < M/N; k++) {
+        for (l = 0; l < M/N; l++) {
+            int x = i * M/N + k;
+            int y = j * M/N + l;
             if (is_valid(x, y)) {
-                sum += mat[x * N + y];
-                blk_arr[i * N + j][blk_cnt[i * N + j]++] = mat[x * N + y];
+                sum += mat[x][y];
             }
         }
     }
-    blk_avg[i * N + j] = round(sum / blk_cnt[i * N + j]);
+    blk_avg[i][j] = floor(sum / (M/N) / (M/N));
 }
 
 // 计算子方阵中位数
 void calc_med(int i, int j) {
     int k;
-    double sum = 0;
-    for (k = 0; k < blk_cnt[i * N + j]; k++) {
-        sum += blk_arr[i * N + j][k];
+    int arr[MAX_M];
+    int len = 0;
+    int x, y;
+    for (k = 0; k < M/N * M/N; k++) {
+        x = i * M/N + k / (M/N);
+        y = j * M/N + k % (M/N);
+        if (is_valid(x, y)) {
+            arr[len++] = mat[x][y];
+        }
     }
-    if (blk_cnt[i * N + j] % 2 == 0) { //中位数
-        blk_med[i * N + j] = round(0.5 * (blk_arr[i * N + j][blk_cnt[i * N + j] / 2 - 1] +
-                                           blk_arr[i * N + j][blk_cnt[i * N + j] / 2]));
-        has_median[i * N + j] = 1;
-    } else {
-        blk_med[i * N + j] = round(blk_arr[i * N + j][blk_cnt[i * N + j] / 2]);
-    }
+    qsort(arr, len, sizeof(int), cmp);
+    blk_med[i][j] = arr[len / 2];
 }
 
 // 计算子方阵方差
 void calc_var(int i, int j) {
     double sum = 0;
-    int k;
-    for (k = 0; k < blk_cnt[i * N + j]; k++) {
-        sum += pow(blk_arr[i * N + j][k] - blk_avg[i * N + j], 2);
+    int k, l;
+    for (k = 0; k < M/N; k++) {
+        for (l = 0; l < M/N; l++) {
+            int x = i * M/N + k;
+            int y = j * M/N + l;
+            if (is_valid(x, y)) {
+                sum += pow(mat[x][y] - blk_avg[i][j], 2);
+            }
+        }
     }
-    blk_var[i * N + j] = round(sum / blk_cnt[i * N + j]);
+    blk_var[i][j] = floor(sum / (M/N) / (M/N));
 }
 
 int main() {
-    int i, j;
-    scanf("%d%d%d", &N, &M, &Q);
-    for (i = 0; i < N * N; i++) {
-        scanf("%d", &mat[i]);
+    int i, j, k;
+    scanf("%d%d", &M, &N);
+    for (i = 0; i < M; i++) {
+        for (j = 0; j < M; j++) {
+            scanf("%d", &mat[i][j]);
+        }
     }
-    for (i = 0; i < N / M; i++) {
-        for (j = 0; j < N / M; j++) {
+    // 计算各子方阵的平均值、中位数、方差
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
             calc_avg(i, j);
             calc_med(i, j);
             calc_var(i, j);
         }
     }
-    while (Q--) {
-        int x0, y0, x1, y1, t;
-        scanf("%d%d%d%d%d", &x0, &y0, &x1, &y1, &t);
-        int i0 = x0 / M;
-        int i1 = x1 / M;
-        int j0 = y0 / M;
-        int j1 = y1 / M;
-        double ans = 0;
-        int cnt = 0;
-        for (i = i0; i <= i1; i++) {
-            for (j = j0; j <= j1; j++) {
-                int x = i * M;
-                int y = j * M;
-                if (is_valid(x, y)) {
-                    if (t == 1) { // 平均值
-                        ans += blk_avg[i * N + j];
-                    } else if (t == 2) { // 中位数
-                        if (!has_median[i * N + j]) { // 如果还没有计算中位数，则现在再计算一遍
-                            calc_med(i, j);
-                        }
-                        ans += blk_med[i * N + j];
-                    } else { // 方差
-                        ans += blk_var[i * N + j];
-                    }
-                    cnt++;
-                }
-            }
+    // 各子方阵平均值排序
+    k = 0;
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
+            cnt[k] = blk_avg[i][j];
+            k++;
         }
-        printf("%.6f\n", ans / cnt);
     }
+    qsort(cnt, N*N, sizeof(int), cmp);
+    for (i = 0; i < N*N; i++) {
+        avg[i] = cnt[i];
+    }
+    // 各子方阵中位数排序
+    k = 0;
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
+            cnt[k] = blk_med[i][j];
+            k++;
+        }
+    }
+    qsort(cnt, N*N, sizeof(int), cmp);
+    for (i = 0; i < N*N; i++) {
+        med[i] = cnt[i];
+    }
+    // 各子方阵方差排序
+    k = 0;
+    for (i = 0; i < N; i++) {
+        for (j = 0; j < N; j++) {
+            cnt[k] = blk_var[i][j];
+            k++;
+        }
+    }
+    qsort(cnt, N*N, sizeof(int), cmp);
+    for (i = 0; i < N*N; i++) {
+        var[i] = cnt[i];
+    }
+    // 按要求输出
+    for (i = 0; i < N*N; i++) {
+        printf("%d ", avg[i]);
+    }
+    printf("\n");
+    for (i = 0; i < N*N; i++) {
+        printf("%d ", med[i]);
+    }
+    printf("\n");
+    for (i = 0; i < N*N; i++) {
+        printf("%d ", var[i]);
+    }
+    printf("\n");
     return 0;
 }
